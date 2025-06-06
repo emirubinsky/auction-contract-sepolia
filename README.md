@@ -1,76 +1,104 @@
-# 🕒 Smart Auction Contract
+# Smart Auction Contract
 
-Welcome! This is a decentralized auction smart contract written in Solidity for the **Scroll Sepolia** testnet.
+This repository contains a decentralized auction smart contract built in Solidity, deployed on the Scroll Sepolia testnet. The contract facilitates time-limited bidding rounds with automatic deadline extensions, secure refunds for non-winning participants, and transparent winner selection.
 
-It supports time-based bidding with automatic deadline extensions, partial refund logic, and a fair winner selection mechanism. Users can participate by placing bids with ETH and retrieve their outbid offers either during or after the auction.
+## Overview
 
----
+The contract implements the following core features:
 
-## 🔧 Smart Contract Functions
-
-| Function           | Description                                                                 |
-|--------------------|-----------------------------------------------------------------------------|
-| `bid()`            | Place a bid at least 5% higher than the current top bid. Extends auction if close to ending. |
-| `showWinner()`     | Returns the current highest bidder and the amount.                          |
-| `showOffers()`     | Returns a list of all submitted bids.                                       |
-| `refund()`         | Ends the auction and sends refunds (minus 2%) to all bidders except the winner. |
-| `partialRefund()`  | Allows users to withdraw their older bids while the auction is still active. |
+- Accepts bids only if they exceed the current top bid by a minimum percentage.
+- Automatically extends the auction deadline if a bid is placed near the end.
+- Allows non-winning bidders to reclaim their funds either partially (before auction end) or after the auction concludes.
+- Deducts a small fee from refunds to simulate operational costs or treasury contributions.
 
 ---
 
-## 🧠 State Variables
+## Functions
+
+| Name              | Description                                                                 |
+|-------------------|-----------------------------------------------------------------------------|
+| `bid()`           | Places a new bid. Must exceed the current highest bid by at least 5%. Automatically extends the auction if close to the deadline. |
+| `showWinner()`    | Returns the current highest bidder's address and bid amount.                |
+| `showOffers()`    | Displays all bids submitted during the auction.                             |
+| `refund()`        | Can be called once by the contract owner after the auction ends. Refunds all bidders except the winner, applying a 2% deduction. |
+| `partialRefund()` | Allows bidders to reclaim their previous (outbid) amounts before the auction ends. |
+
+---
+
+## State Variables
 
 ### General
-- `owner` – Address of the contract creator.
-- `startTime` / `stopTime` – Auction timing control.
-- `auctionEnded` – Boolean indicating whether the auction has been finalized.
+
+- `owner`: Address of the contract deployer.
+- `startTime`: Timestamp when the auction started.
+- `stopTime`: Timestamp when the auction is scheduled to end.
+- `auctionEnded`: Boolean flag indicating whether the auction has been finalized.
 
 ### Constants
-- `AUCTION_DURATION` – Duration of the auction (7 days).
-- `EXTENSION_TIME` – Extra time added if a bid is placed near the end (10 minutes).
-- `MIN_BID_INCREMENT_PERCENT` – Minimum bid increase (5%).
-- `REFUND_FEE_PERCENT` – Refund fee (2%).
 
-### Bidding
-- `Bidder[] bids` – Array storing all bids and bidder addresses.
-- `Bidder winner` – Tracks the highest bid and the leading bidder.
+- `AUCTION_DURATION`: Fixed auction duration (7 days).
+- `EXTENSION_TIME`: Additional time added to the deadline when late bids are placed (10 minutes).
+- `MIN_BID_INCREMENT_PERCENT`: Minimum percentage required to exceed the current top bid (5%).
+- `REFUND_FEE_PERCENT`: Fixed fee deducted from refunds (2%).
 
-### User tracking
-- `mapping(address => uint256[]) userBids` – Stores multiple bids per user.
-- `mapping(address => uint256) refundableAmount` – Tracks how much each user can reclaim.
-- `mapping(address => bool) hasWithdrawn` – Prevents duplicate withdrawals.
+### Bidding Logic
 
----
+- `bids`: An array of all `Bidder` structs, which include bid amount and bidder address.
+- `winner`: Struct holding the address and amount of the leading bid.
 
-## 📣 Events
+### User Tracking
 
-| Event                              | Description                                                             |
-|------------------------------------|-------------------------------------------------------------------------|
-| `NewOffer(address bidder, uint256 amount)` | Emitted whenever a new bid is placed.                         |
-| `AuctionEnded(address winner, uint256 amount)` | Emitted when the auction is closed and winner is declared.     |
-| `PartialRefund(address bidder, uint256 amount)` | Emitted when a user withdraws their old bids before auction ends. |
+- `userBids`: Mapping that stores an array of bid amounts for each user.
+- `refundableAmount`: Tracks how much a user can reclaim.
+- `hasWithdrawn`: Ensures each user can withdraw only once.
 
 ---
 
-## 🧪 How to Use (Remix)
+## Events
 
-1. Deploy the contract to Scroll Sepolia using Remix and Metamask.
-2. Switch to the deployed contract instance under “Deployed Contracts”.
-3. To place a bid:  
-   - In the "Value" field, enter e.g. `1` and select `ether`, then click `bid()`.
-4. Use `showWinner()` to see the current top bidder and amount.
-5. As the contract owner, end the auction by calling `refund()` after time has passed.
-6. Users who were outbid can recover previous funds using `partialRefund()`.
+| Event                         | Description                                                         |
+|-------------------------------|---------------------------------------------------------------------|
+| `NewOffer(address, uint256)`  | Emitted every time a valid bid is placed.                          |
+| `AuctionEnded(address, uint256)` | Emitted when the auction concludes and the winner is confirmed.  |
+| `PartialRefund(address, uint256)` | Emitted when a user retrieves a partial refund before the end.  |
 
 ---
 
-## 🛡️ Security Notes
+## Usage Instructions (Remix + Metamask)
 
-- ❗ Bids are only accepted if they are at least **5% higher** than the current highest.
-- ❗ The auction can only be ended **once**, and only by the **contract owner**.
-- ✅ Refunds are calculated **excluding** a 2% fee.
-- ✅ Bidders can retrieve previous bids **before** auction ends, avoiding locked funds.
+1. **Deploy the Contract**  
+   Deploy using the Remix IDE, selecting the Scroll Sepolia testnet via Metamask.
+
+2. **Interact with the Contract**  
+   - Use the `bid()` function by entering a value (e.g., `1 ether`) and submitting the transaction.
+   - Track the current leader with `showWinner()`.
+   - View all bids using `showOffers()`.
+
+3. **Finalizing the Auction**  
+   - Once the auction has ended (7 days after deployment), the owner can call `refund()` to process non-winner refunds.
+
+4. **Early Withdrawals**  
+   - Users may call `partialRefund()` before the auction ends to reclaim any overbid amounts.
 
 ---
 
-Feel free to explore and test the contract on Scroll Sepolia!
+## Security Considerations
+
+- Bids are validated to be at least 5% higher than the current leading offer to avoid spam and ensure fair competition.
+- The auction can be finalized only once and only by the contract owner.
+- Refunds are processed with a flat 2% deduction.
+- Each user’s withdrawal is restricted to a one-time action to prevent double claims.
+
+---
+
+## Testing Environment
+
+- **Network**: Scroll Sepolia (L2 Testnet)
+- **Solidity Version**: ^0.8.20
+- **Tooling**: Remix IDE, Metamask, Etherscan for contract verification
+
+---
+
+## License
+
+This project is licensed under the MIT License.
