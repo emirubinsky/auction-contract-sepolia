@@ -2,15 +2,15 @@
 pragma solidity ^0.8.20;
 
 /**
- * @title Contrato de Subasta
- * @notice Implementa un sistema de subasta descentralizada con las siguientes características:
- * - Subasta basada en tiempo con extensión dinámica del plazo
- * - Sistema de seguimiento de depósitos y ofertas
- * - Mecanismos de reembolso total y parcial con comisión del 2%
- * - Requisito de incremento mínimo del 5% entre ofertas
- * - Sistema de recuperación de emergencia de ETH
- * @dev Toda la funcionalidad basada en tiempo utiliza block.timestamp
- * @custom:security Diseñado para ser no reentrable, contrato de subasta única
+ * @title Auction Contract
+ * @notice Implements a decentralized auction system with the following features:
+ * - Time-based auction with dynamic deadline extension
+ * - Deposit and bid tracking
+ * - Full and partial refunds with a 2% fee
+ * - Minimum bid increment of 5%
+ * - Emergency ETH recovery function
+ * @dev All time-based logic uses block.timestamp
+ * @custom:security Designed to be non-reentrant, single-auction contract
  */
 contract Auction {
     struct Bidder {
@@ -18,7 +18,7 @@ contract Auction {
         address bidder;
     }
 
-    // Variables de estado
+    // State variables
     address public owner;
     uint256 public startTime;
     uint256 public stopTime;
@@ -30,21 +30,21 @@ contract Auction {
     Bidder public winner;
     Bidder[] public bids;
 
-    // Seguimiento de oferentes
+    // Bidder tracking
     mapping(address => uint256[]) public userBids;
     mapping(address => uint256) public refundableAmount;
     mapping(address => bool) public hasWithdrawn;
 
     bool public auctionEnded;
 
-    // Eventos para seguimiento de actividad de la subasta
+    // Events for auction activity tracking
     event NewOffer(address indexed bidder, uint256 amount);
     event AuctionEnded(address winner, uint256 amount);
     event PartialRefund(address indexed bidder, uint256 amount);
     event EmergencyWithdrawal(address indexed owner, uint256 amount);
 
     /**
-     * @notice Restringe el acceso de la función solo al propietario del contrato
+     * @notice Restricts function access to the contract owner only
      */
     modifier onlyOwner() {
         require(msg.sender == owner, "Ownr");
@@ -52,7 +52,7 @@ contract Auction {
     }
 
     /**
-     * @notice Asegura que la subasta esté activa y no haya finalizado
+     * @notice Ensures the auction is active and has not ended
      */
     modifier isActive() {
         require(block.timestamp < stopTime, "Inctv");
@@ -61,7 +61,7 @@ contract Auction {
     }
 
     /**
-     * @notice Asegura que la subasta haya finalizado, sea por tiempo o manualmente
+     * @notice Ensures the auction has ended either by time or manually
      */
     modifier hasEnded() {
         require(block.timestamp >= stopTime || auctionEnded, "Active");
@@ -69,8 +69,8 @@ contract Auction {
     }
 
     /**
-     * @notice Inicializa la subasta con el desplegador como propietario
-     * @dev Establece el estado inicial y los parámetros de tiempo
+     * @notice Initializes the auction with the deployer as the owner
+     * @dev Sets initial state and timing parameters
      */
     constructor() {
         owner = msg.sender;
@@ -80,16 +80,16 @@ contract Auction {
     }
 
     /**
-     * @notice Realiza una nueva oferta en la subasta
-     * @dev Extiende automáticamente la subasta si la oferta se realiza cerca del final
-     * Requisitos:
-     * - La subasta debe estar activa
-     * - La oferta debe ser al menos 5% mayor que la oferta más alta actual
-     * - El monto de la oferta se envía a través de msg.value
-     * Efectos:
-     * - Actualiza el historial de ofertas y el ganador
-     * - Puede extender el tiempo de la subasta
-     * - Emite evento NewOffer
+     * @notice Places a new bid on the auction
+     * @dev Automatically extends auction time if bid is placed near the end
+     * Requirements:
+     * - Auction must be active
+     * - Bid must be at least 5% higher than the current highest bid
+     * - The bid amount is sent via msg.value
+     * Effects:
+     * - Updates bid history and winner
+     * - May extend auction time
+     * - Emits NewOffer event
      */
     function bid() external payable isActive {
         require(msg.value > winner.amount * (100 + MIN_BID_INCREMENT_PERCENT) / 100, "Min incrmnt 5%");
@@ -109,33 +109,33 @@ contract Auction {
     }
 
     /**
-     * @notice Obtiene la información del ganador actual
-     * @return Estructura Bidder conteniendo el monto de la oferta más alta y la dirección del oferente
+     * @notice Returns the current winning bidder info
+     * @return Bidder struct with highest bid and bidder address
      */
     function showWinner() external view returns (Bidder memory) {
         return winner;
     }
 
     /**
-     * @notice Obtiene el historial completo de ofertas
-     * @return Array de estructuras Bidder conteniendo todas las ofertas
+     * @notice Returns the complete bid history
+     * @return Array of Bidder structs with all bids
      */
     function showOffers() external view returns (Bidder[] memory) {
         return bids;
     }
 
     /**
-     * @notice Procesa los reembolsos para todos los oferentes no ganadores
-     * @dev Solo el propietario puede llamar después de que la subasta termine
-     * Requisitos:
-     * - Solo el propietario puede llamar
-     * - La subasta debe haber terminado
-     * - No se puede llamar dos veces
-     * Efectos:
-     * - Marca la subasta como finalizada
-     * - Procesa reembolsos con comisión del 2%
-     * - Previene reembolsos duplicados mediante hasWithdrawn
-     * - Emite evento AuctionEnded
+     * @notice Processes refunds for all non-winning bidders
+     * @dev Can only be called by the owner after the auction ends
+     * Requirements:
+     * - Only owner can call
+     * - Auction must have ended
+     * - Cannot be called more than once
+     * Effects:
+     * - Marks auction as finalized
+     * - Processes refunds with a 2% fee
+     * - Prevents double refunds via hasWithdrawn
+     * - Emits AuctionEnded event
      */
     function refund() external onlyOwner hasEnded {
         require(!auctionEnded, "Finalized");
@@ -160,16 +160,16 @@ contract Auction {
     }
 
     /**
-     * @notice Permite a los oferentes retirar sus ofertas anteriores durante la subasta
-     * @dev Solo reembolsa ofertas anteriores, mantiene la última oferta activa
-     * Requisitos:
-     * - La subasta debe estar activa
-     * - El llamante debe tener al menos 2 ofertas
-     * - Debe tener monto reembolsable
-     * Efectos:
-     * - Reembolsa todas las ofertas excepto la última
-     * - Actualiza el monto reembolsable
-     * - Emite evento PartialRefund
+     * @notice Allows bidders to withdraw previous (outbid) offers during the auction
+     * @dev Only refunds previous bids, keeps the latest active bid
+     * Requirements:
+     * - Auction must be active
+     * - Caller must have at least 2 bids
+     * - Refundable amount must be non-zero
+     * Effects:
+     * - Refunds all but the last bid
+     * - Updates refundable amount
+     * - Emits PartialRefund event
      */
     function partialRefund() external isActive {
         require(userBids[msg.sender].length > 1, "No prev bids");
@@ -190,14 +190,14 @@ contract Auction {
     }
 
     /**
-     * @notice Función de emergencia para recuperar ETH del contrato
-     * @dev Solo el propietario puede llamar
-     * Requisitos:
-     * - Solo el propietario puede llamar
-     * - El contrato debe tener balance
-     * Efectos:
-     * - Transfiere todo el balance del contrato al propietario
-     * - Emite evento EmergencyWithdrawal
+     * @notice Emergency function to recover ETH from the contract
+     * @dev Only the owner can call
+     * Requirements:
+     * - Only owner can call
+     * - Contract must have a positive balance
+     * Effects:
+     * - Transfers entire contract balance to owner
+     * - Emits EmergencyWithdrawal event
      */
     function emergencyWithdraw() external onlyOwner {
         uint256 balance = address(this).balance;
